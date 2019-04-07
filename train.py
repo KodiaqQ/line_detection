@@ -106,12 +106,19 @@ if __name__ == '__main__':
         input_shape=(HEIGHT, WIDTH, DEPTH),
         classes=1,
         activation='sigmoid',
+        decoder_block_type='transpose',
         encoder_weights='imagenet',
         encoder_freeze=True
     )
 
     model.summary()
     model.compile(optimizer=Adam(1e-3), loss=bce_dice_loss, metrics=[dice_score, jaccard_score])
+
+    model_json = model.to_json()
+    json_file = open('models/linknet' + str(BATCH) + '_batch.json', 'w')
+    json_file.write(model_json)
+    json_file.close()
+    print('Model saved!')
 
     # 1st stage
     model.fit_generator(
@@ -129,15 +136,11 @@ if __name__ == '__main__':
     model.fit_generator(
         my_generator(train_images, train_masks, BATCH),
         steps_per_epoch=len(train_masks) / BATCH,
-        epochs=10,
+        epochs=50,
         verbose=1,
         validation_data=my_generator(val_images, val_masks, 1),
         validation_steps=len(val_images),
         callbacks=callbacks_list
     )
 
-    model_json = model.to_json()
-    json_file = open('models/linknet' + str(BATCH) + '_batch.json', 'w')
-    json_file.write(model_json)
-    json_file.close()
-    print('Model saved!')
+    print('done!')
