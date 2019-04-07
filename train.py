@@ -6,18 +6,36 @@ import numpy as np
 from keras.preprocessing.image import ImageDataGenerator
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
+import keras.backend as K
 import matplotlib.pyplot as plt
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, TensorBoard
 from keras.optimizers import Adam
-from segmentation_models.metrics import dice_score, jaccard_score
-from segmentation_models.losses import dice_loss, bce_dice_loss
 import h5py
 
 SEED = 42
+smooth = 1e-10
 HEIGHT, WIDTH, DEPTH = 224, 224, 3
 IMAGES = 'E:/datasets/parking/images'
 MASKS = 'E:/datasets/parking/masks'
 BATCH = 8
+
+
+def dice_coef(y_true, y_pred):
+    smooth = 1.
+    y_true_f = K.flatten(y_true)
+    y_pred_f = K.flatten(y_pred)
+    intersection = K.sum(y_true_f * y_pred_f)
+    return (2. * intersection + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
+
+
+def jaccard_coef(y_true, y_pred):
+    # __author__ = Vladimir Iglovikov
+    intersection = K.sum(y_true * y_pred, axis=[0, -1, -2])
+    sum_ = K.sum(y_true + y_pred, axis=[0, -1, -2])
+
+    jac = (intersection + smooth) / (sum_ - intersection + smooth)
+
+    return K.mean(jac)
 
 
 def my_generator(x_train, y_train, batch_size):
@@ -31,6 +49,10 @@ def my_generator(x_train, y_train, batch_size):
         x_batch, _ = data_generator.next()
         y_batch, _ = mask_generator.next()
         yield x_batch, y_batch
+
+
+def dice_loss(y_true, y_pred):
+    return 1. - dice_coef(y_true, y_pred)
 
 
 def prepare_data():
@@ -112,7 +134,7 @@ if __name__ == '__main__':
     )
 
     model.summary()
-    model.compile(optimizer=Adam(1e-3), loss=bce_dice_loss, metrics=[dice_score, jaccard_score])
+    model.compile(optimizer=Adam(1e-3), loss=dice_loss, metrics=[dice_coef, jaccard_coef])
 
     model_json = model.to_json()
     json_file = open('models/linknet' + str(BATCH) + '_batch.json', 'w')
@@ -140,7 +162,8 @@ if __name__ == '__main__':
         verbose=1,
         validation_data=my_generator(val_images, val_masks, 1),
         validation_steps=len(val_images),
-        callbacks=callbacks_list
+        callbacks=callbacks_list,
+        shuffle=True
     )
 
     print('done!')

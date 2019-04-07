@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import cv2
@@ -19,15 +20,18 @@ if __name__ == '__main__':
 
     model.compile(optimizer=Adam(1e-3), loss=bce_dice_loss, metrics=[dice_score, jaccard_score])
 
-    image = cv2.imread('image_0.jpg', cv2.IMREAD_UNCHANGED)
+    image = cv2.imread('2.jpg', cv2.IMREAD_UNCHANGED)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    image = cv2.resize(image, (HEIGHT, WIDTH))
-    image = image.reshape(1, HEIGHT, WIDTH, DEPTH)
+    original = cv2.resize(image, (HEIGHT, WIDTH))
+    image = original.reshape(1, HEIGHT, WIDTH, DEPTH)
 
     predict = model.predict(image)
 
     result = predict[0, :, :, 0]
 
-    cv2.imshow('result', result)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    fig, axes = plt.subplots(1, 2)
+    axes[0].imshow(original)
+    axes[0].set_title('original')
+    axes[1].imshow(result)
+    axes[1].set_title('result')
+    plt.show()
