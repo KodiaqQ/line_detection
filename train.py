@@ -90,7 +90,7 @@ if __name__ == '__main__':
     #
     # exit()
     callbacks_list = [
-        ModelCheckpoint('models/linknet' + str(BATCH) + '.h5',
+        ModelCheckpoint('models/linknet' + str(BATCH) + '_batch.h5',
                         verbose=1,
                         save_best_only=True,
                         mode='min',
@@ -98,7 +98,7 @@ if __name__ == '__main__':
         TensorBoard(log_dir='./logs',
                     batch_size=BATCH,
                     write_images=True),
-        ReduceLROnPlateau(verbose=1, factor=0.25, patience=1, min_lr=1e-6)
+        ReduceLROnPlateau(verbose=1, factor=0.25, patience=3, min_lr=1e-6)
     ]
 
     model = Linknet(
