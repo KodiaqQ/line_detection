@@ -44,16 +44,12 @@ def my_generator(x_train, y_train, batch_size):
         height_shift_range=0.25,
         zoom_range=0.25,
         horizontal_flip=True,
-        rotation_range=90,
-        vertical_flip=True,
         rescale=1. / 255).flow(x_train, x_train, batch_size, seed=SEED)
     mask_generator = ImageDataGenerator(
         width_shift_range=0.25,
         height_shift_range=0.25,
         zoom_range=0.25,
         horizontal_flip=True,
-        rotation_range=90,
-        vertical_flip=True,
         rescale=1. / 255).flow(y_train, y_train, batch_size, seed=SEED)
     while True:
         x_batch, _ = data_generator.next()
@@ -138,9 +134,10 @@ if __name__ == '__main__':
         input_shape=(HEIGHT, WIDTH, DEPTH),
         classes=1,
         activation='sigmoid',
-        decoder_block_type='transpose',
+        decoder_block_type='upsampling',
         encoder_weights='imagenet',
-        encoder_freeze=True
+        encoder_freeze=True,
+        decoder_use_batchnorm=True
     )
 
     model.summary()
