@@ -40,10 +40,20 @@ def jaccard_coef(y_true, y_pred):
 
 def my_generator(x_train, y_train, batch_size):
     data_generator = ImageDataGenerator(
+        width_shift_range=0.25,
+        height_shift_range=0.25,
+        zoom_range=0.25,
         horizontal_flip=True,
+        rotation_range=90,
+        vertical_flip=True,
         rescale=1. / 255).flow(x_train, x_train, batch_size, seed=SEED)
     mask_generator = ImageDataGenerator(
+        width_shift_range=0.25,
+        height_shift_range=0.25,
+        zoom_range=0.25,
         horizontal_flip=True,
+        rotation_range=90,
+        vertical_flip=True,
         rescale=1. / 255).flow(y_train, y_train, batch_size, seed=SEED)
     while True:
         x_batch, _ = data_generator.next()
