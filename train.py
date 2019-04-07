@@ -1,4 +1,4 @@
-from segmentation_models.unet import Unet
+from segmentation_models.linknet import Linknet
 from segmentation_models.utils import set_trainable
 import cv2
 import os
@@ -11,12 +11,13 @@ from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, TensorBoard
 from keras.optimizers import Adam
 from segmentation_models.metrics import dice_score, jaccard_score
 from segmentation_models.losses import dice_loss, bce_dice_loss
+import h5py
 
 SEED = 42
-HEIGHT, WIDTH = 224, 224
+HEIGHT, WIDTH, DEPTH = 224, 224, 3
 IMAGES = 'E:/datasets/parking/images'
 MASKS = 'E:/datasets/parking/masks'
-BATCH = 2
+BATCH = 8
 
 
 def my_generator(x_train, y_train, batch_size):
@@ -32,13 +33,21 @@ def my_generator(x_train, y_train, batch_size):
         yield x_batch, y_batch
 
 
-def prepare_data(split=0.2):
+def prepare_data():
     print('starting making data..')
-    # get names of jpg files inside folder and create a list
-    images = os.listdir(IMAGES)[:100]
-    masks = os.listdir(MASKS)[:100]
 
-    # input data array
+    dataset_name = 'birdEyeView.hdf5'
+
+    if os.path.isfile(dataset_name):
+        data = h5py.File(dataset_name, 'r')
+        print('read dataset from hdf5')
+        return data['images'][()], data['masks'][()]
+
+    data = h5py.File(dataset_name, 'w')
+
+    images = os.listdir(IMAGES)
+    masks = os.listdir(MASKS)
+
     x_data = np.empty((len(images), HEIGHT, WIDTH, 3), dtype=np.uint8)
     y_data = np.empty((len(masks), HEIGHT, WIDTH, 1), dtype=np.uint8)
 
@@ -58,11 +67,19 @@ def prepare_data(split=0.2):
 
     print(f'{len(x_data)} images loaded!')
 
-    return train_test_split(x_data, y_data, test_size=split, random_state=SEED)
+    data.create_dataset('images', data=x_data)
+    data.create_dataset('masks', data=y_data)
+
+    data.close()
+
+    return x_data, y_data
 
 
 if __name__ == '__main__':
-    train_images, val_images, train_masks, val_masks = prepare_data(0.2)
+    x_data, y_data = prepare_data()
+
+    train_images, val_images, train_masks, val_masks = train_test_split(x_data, y_data, test_size=0.2,
+                                                                        random_state=SEED, shuffle=True)
 
     # fig, axes = plt.subplots(1, 2)
     # axes[0].imshow(train_images[10])
@@ -70,21 +87,23 @@ if __name__ == '__main__':
     # axes[1].imshow(train_masks[10][:, :, 0])
     # axes[1].set_title('mask')
     # plt.show()
-
+    #
+    # exit()
     callbacks_list = [
-        ModelCheckpoint('testing.h5',
+        ModelCheckpoint('models/linknet' + str(BATCH) + '.h5',
                         verbose=1,
                         save_best_only=True,
                         mode='min',
                         save_weights_only=True),
         TensorBoard(log_dir='./logs',
                     batch_size=BATCH,
-                    write_images=True)
+                    write_images=True),
+        ReduceLROnPlateau(verbose=1, factor=0.25, patience=1, min_lr=1e-6)
     ]
 
-    model = Unet(
+    model = Linknet(
         backbone_name='mobilenetv2',
-        input_shape=(HEIGHT, WIDTH, 3),
+        input_shape=(HEIGHT, WIDTH, DEPTH),
         classes=1,
         activation='sigmoid',
         encoder_weights='imagenet',
@@ -92,7 +111,7 @@ if __name__ == '__main__':
     )
 
     model.summary()
-    model.compile(optimizer=Adam(1e-5), loss=dice_loss, metrics=[dice_score, jaccard_score])
+    model.compile(optimizer=Adam(1e-3), loss=bce_dice_loss, metrics=[dice_score, jaccard_score])
 
     # 1st stage
     model.fit_generator(
@@ -101,8 +120,7 @@ if __name__ == '__main__':
         epochs=5,
         verbose=1,
         validation_data=my_generator(val_images, val_masks, 1),
-        validation_steps=len(val_images),
-        callbacks=[TensorBoard(log_dir='./logs', batch_size=BATCH, write_images=True)]
+        validation_steps=len(val_images)
     )
 
     set_trainable(model)
@@ -111,15 +129,15 @@ if __name__ == '__main__':
     model.fit_generator(
         my_generator(train_images, train_masks, BATCH),
         steps_per_epoch=len(train_masks) / BATCH,
-        epochs=5,
+        epochs=10,
         verbose=1,
         validation_data=my_generator(val_images, val_masks, 1),
         validation_steps=len(val_images),
-        callbacks=[TensorBoard(log_dir='./logs', batch_size=BATCH, write_images=True)]
+        callbacks=callbacks_list
     )
 
     model_json = model.to_json()
-    json_file = open('models/test.json', 'w')
+    json_file = open('models/linknet' + str(BATCH) + '_batch.json', 'w')
     json_file.write(model_json)
     json_file.close()
     print('Model saved!')
