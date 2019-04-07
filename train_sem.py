@@ -19,20 +19,17 @@ HEIGHT, WIDTH, DEPTH = 224, 224, 3
 IMAGES = 'E:/datasets/parking/images'
 MASKS = 'E:/datasets/parking/masks'
 BATCH = 8
+CLASSES = {
+    'car': 76,
+    'road': 29,
+    'line': 255
+}
 
 
 def my_generator(x_train, y_train, batch_size):
     data_generator = ImageDataGenerator(
-        width_shift_range=0.25,
-        height_shift_range=0.25,
-        zoom_range=0.25,
-        horizontal_flip=True,
         rescale=1. / 255).flow(x_train, x_train, batch_size, seed=SEED)
     mask_generator = ImageDataGenerator(
-        width_shift_range=0.25,
-        height_shift_range=0.25,
-        zoom_range=0.25,
-        horizontal_flip=True,
         rescale=1. / 255).flow(y_train, y_train, batch_size, seed=SEED)
     while True:
         x_batch, _ = data_generator.next()
@@ -43,20 +40,18 @@ def my_generator(x_train, y_train, batch_size):
 def prepare_data():
     print('starting making data..')
 
-    dataset_name = 'birdEyeView.hdf5'
+    dataset_name = 'birdEyeViewSemantic.hdf5'
 
     if os.path.isfile(dataset_name):
         data = h5py.File(dataset_name, 'r')
         print('read dataset from hdf5')
         return data['images'][()], data['masks'][()]
 
-    data = h5py.File(dataset_name, 'w')
-
     images = os.listdir(IMAGES)
     masks = os.listdir(MASKS)
 
     x_data = np.empty((len(images), HEIGHT, WIDTH, 3), dtype=np.uint8)
-    y_data = np.empty((len(masks), HEIGHT, WIDTH, 1), dtype=np.uint8)
+    y_data = np.empty((len(masks), HEIGHT, WIDTH, len(CLASSES)), dtype=np.uint8)
 
     tbar = tqdm(images)
     for i, file_name in enumerate(tbar):
@@ -64,20 +59,25 @@ def prepare_data():
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         image = cv2.resize(image, dsize=(HEIGHT, WIDTH), interpolation=cv2.INTER_LINEAR)
 
-        mask = cv2.imread(os.path.join(MASKS, file_name.replace('.jpg', '.png')), cv2.IMREAD_UNCHANGED)
-        mask = cv2.cvtColor(mask, cv2.COLOR_BGR2RGB)
+        mask = cv2.imread(os.path.join(MASKS, file_name.replace('.jpg', '.png')), cv2.IMREAD_GRAYSCALE)
         mask = cv2.resize(mask, dsize=(HEIGHT, WIDTH), interpolation=cv2.INTER_LINEAR)
-        mask[mask != 255] = 0
-        mask = mask[:, :, np.newaxis]
+
+        mask_list = np.empty(shape=(HEIGHT, WIDTH, len(CLASSES)))
+        for j, layer in enumerate(CLASSES):
+            temp = mask.copy()
+            temp[temp != CLASSES[layer]] = 0
+            temp[temp != 0] = 255
+            np.append(mask_list, temp)
 
         x_data[i] = image
-        y_data[i] = mask
+        y_data[i] = mask_list
 
     print(f'{len(x_data)} images loaded!')
 
+    data = h5py.File(dataset_name, 'w')
+
     data.create_dataset('images', data=x_data)
     data.create_dataset('masks', data=y_data)
-
     data.close()
 
     return x_data, y_data
@@ -88,17 +88,8 @@ if __name__ == '__main__':
 
     train_images, val_images, train_masks, val_masks = train_test_split(x_data, y_data, test_size=0.2,
                                                                         random_state=SEED, shuffle=True)
-
-    # fig, axes = plt.subplots(1, 2)
-    # axes[0].imshow(train_images[10])
-    # axes[0].set_title('image')
-    # axes[1].imshow(train_masks[10][:, :, 0])
-    # axes[1].set_title('mask')
-    # plt.show()
-    #
-    # exit()
     callbacks_list = [
-        ModelCheckpoint('models/linknet' + str(BATCH) + '_batch.h5',
+        ModelCheckpoint('models/linknet' + str(len(CLASSES)) + '_classes.h5',
                         verbose=1,
                         save_best_only=True,
                         mode='min',
@@ -112,7 +103,7 @@ if __name__ == '__main__':
     model = Linknet(
         backbone_name='mobilenetv2',
         input_shape=(HEIGHT, WIDTH, DEPTH),
-        classes=1,
+        classes=len(CLASSES),
         activation='sigmoid',
         decoder_block_type='upsampling',
         encoder_weights='imagenet',
@@ -124,7 +115,7 @@ if __name__ == '__main__':
     model.compile(optimizer=Adam(1e-3), loss=jaccard_loss, metrics=[dice_score, jaccard_score])
 
     model_json = model.to_json()
-    json_file = open('models/linknet' + str(BATCH) + '_batch.json', 'w')
+    json_file = open('models/linknet' + str(len(CLASSES)) + '_classes.json', 'w')
     json_file.write(model_json)
     json_file.close()
     print('Model saved!')
