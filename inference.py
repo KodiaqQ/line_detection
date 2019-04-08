@@ -10,8 +10,8 @@ from keras.models import model_from_json
 HEIGHT, WIDTH, DEPTH = 224, 224, 3
 
 if __name__ == '__main__':
-    json = 'models/linknet16_batch.json'
-    weight = 'models/linknet16_batch.h5'
+    json = 'models/linknet3_classes.json'
+    weight = 'models/linknet3_classes.h5'
 
     json = open(json, 'r')
 
@@ -29,9 +29,9 @@ if __name__ == '__main__':
 
     result = predict[0, :, :, 0]
 
-    fig, axes = plt.subplots(1, 2)
-    axes[0].imshow(original)
-    axes[0].set_title('original')
-    axes[1].imshow(result)
-    axes[1].set_title('result')
+    fig, axes = plt.subplots(2, 2)
+    axes[0, 0].imshow(original)
+    axes[0, 1].imshow(predict[0, :, :, 0])
+    axes[1, 0].imshow(predict[0, :, :, 1])
+    axes[1, 1].imshow(predict[0, :, :, 2])
     plt.show()
