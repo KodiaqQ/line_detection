@@ -1,19 +1,16 @@
-from segmentation_models.linknet import Linknet
-from segmentation_models.utils import set_trainable
-import cv2
 import os
-import numpy as np
-from keras.preprocessing.image import ImageDataGenerator
-from sklearn.model_selection import train_test_split
-from tqdm import tqdm
-import matplotlib.pyplot as plt
-from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, TensorBoard
-from keras.optimizers import Adam
+
+import cv2
 import h5py
 import keras.backend as K
+import numpy as np
+from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, TensorBoard
+from keras.optimizers import Adam
+from keras.preprocessing.image import ImageDataGenerator
+from segmentation_models.linknet import Linknet
 from segmentation_models.losses import cce_jaccard_loss
-from sklearn.utils import class_weight
-from segmentation_models.metrics import get_iou_score
+from segmentation_models.metrics import jaccard_score
+from tqdm import tqdm
 
 SEED = 42
 smooth = 1e-10
@@ -84,11 +81,6 @@ def prepare_data():
 
         x_data[i] = image
         y_data[i] = mask_list
-        # fig, axes = plt.subplots(2, 2)
-        # axes[0, 0].imshow(mask)
-        # axes[0, 1].imshow(mask_list)
-        # plt.show()
-        # exit()
 
     print(f'{len(x_data)} images loaded!')
 
@@ -113,15 +105,8 @@ if __name__ == '__main__':
     x_data, y_data = prepare_data()
 
     train_images, val_images, train_masks, val_masks = x_data[:5000], x_data[5000:], y_data[:5000], y_data[5000:]
-
-    # result = val_masks[0, :, :, 2]
-    # fig, axes = plt.subplots(2, 2)
-    # axes[0, 0].imshow(val_masks[0, :, :, 1])
-    # axes[0, 1].imshow(val_masks[0, :, :, 2])
-    # plt.show()
-    # exit()
     callbacks_list = [
-        ModelCheckpoint('models/linknet' + str(len(CLASSES)) + '_classes.h5',
+        ModelCheckpoint('models/linknet_sem' + str(len(CLASSES)) + '_classes.h5',
                         verbose=1,
                         save_best_only=True,
                         mode='min',
@@ -133,42 +118,24 @@ if __name__ == '__main__':
     ]
 
     model = Linknet(
-        backbone_name='mobilenetv2',
+        backbone_name='resnet34',
         input_shape=(HEIGHT, WIDTH, DEPTH),
         classes=len(CLASSES),
-        activation='softmax',
-        decoder_block_type='upsampling',
+        activation='sigmoid',
+        decoder_block_type='transpose',
         encoder_weights='imagenet',
-        encoder_freeze=True,
         decoder_use_batchnorm=True
     )
 
     model.summary()
-    # class_weights = class_weight.compute_class_weight(None,
-    #                                                   np.unique(train_masks),
-    #                                                   train_masks)
-    iou = get_iou_score(class_weights=1., smooth=smooth, per_image=True)
-    model.compile(optimizer=Adam(1e-3), loss=cce_jaccard_loss, metrics=[iou])
+    model.compile(optimizer=Adam(1e-4), loss=cce_jaccard_loss, metrics=[jaccard_score])
 
     model_json = model.to_json()
-    json_file = open('models/linknet' + str(len(CLASSES)) + '_classes.json', 'w')
+    json_file = open('models/linknet_sem' + str(len(CLASSES)) + '_classes.json', 'w')
     json_file.write(model_json)
     json_file.close()
     print('Model saved!')
 
-    # 1st stage
-    model.fit_generator(
-        my_generator(train_images, train_masks, BATCH),
-        steps_per_epoch=len(train_masks) / BATCH,
-        epochs=5,
-        verbose=1,
-        validation_data=my_generator(val_images, val_masks, 1),
-        validation_steps=len(val_images)
-    )
-
-    set_trainable(model)
-
-    # 2nd stage
     model.fit_generator(
         my_generator(train_images, train_masks, BATCH),
         steps_per_epoch=len(train_masks) / BATCH,
@@ -181,3 +148,10 @@ if __name__ == '__main__':
     )
 
     print('done!')
+
+    # result = val_masks[0, :, :, 2]
+    # fig, axes = plt.subplots(2, 2)
+    # axes[0, 0].imshow(val_masks[0, :, :, 1])
+    # axes[0, 1].imshow(val_masks[0, :, :, 2])
+    # plt.show()
+    # exit()

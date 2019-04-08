@@ -16,7 +16,7 @@ from segmentation_models.losses import bce_dice_loss, jaccard_loss
 
 SEED = 42
 smooth = 1e-10
-HEIGHT, WIDTH, DEPTH = 224, 224, 3
+HEIGHT, WIDTH, DEPTH = 224, 224, 1
 IMAGES = 'E:/datasets/parking/images'
 MASKS = 'E:/datasets/parking/masks'
 BATCH = 4
@@ -44,14 +44,12 @@ def my_generator(x_train, y_train, batch_size):
 def prepare_data():
     print('starting making data..')
 
-    dataset_name = 'birdEyeView.hdf5'
+    dataset_name = 'birdEyeView_gray.hdf5'
 
     if os.path.isfile(dataset_name):
         data = h5py.File(dataset_name, 'r')
         print('read dataset from hdf5')
         return data['images'][()], data['masks'][()]
-
-    data = h5py.File(dataset_name, 'w')
 
     images = os.listdir(IMAGES)
     masks = os.listdir(MASKS)
@@ -61,12 +59,11 @@ def prepare_data():
 
     tbar = tqdm(images)
     for i, file_name in enumerate(tbar):
-        image = cv2.imread(os.path.join(IMAGES, file_name), cv2.IMREAD_UNCHANGED)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = cv2.imread(os.path.join(IMAGES, file_name), cv2.IMREAD_GRAYSCALE)
+        image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
         image = cv2.resize(image, dsize=(HEIGHT, WIDTH), interpolation=cv2.INTER_LINEAR)
 
-        mask = cv2.imread(os.path.join(MASKS, file_name.replace('.jpg', '.png')), cv2.IMREAD_UNCHANGED)
-        mask = cv2.cvtColor(mask, cv2.COLOR_BGR2RGB)
+        mask = cv2.imread(os.path.join(MASKS, file_name.replace('.jpg', '.png')), cv2.IMREAD_GRAYSCALE)
         mask = cv2.resize(mask, dsize=(HEIGHT, WIDTH), interpolation=cv2.INTER_LINEAR)
         mask[mask != 255] = 0
         mask = mask[:, :, np.newaxis]
@@ -75,6 +72,8 @@ def prepare_data():
         y_data[i] = mask
 
     print(f'{len(x_data)} images loaded!')
+
+    data = h5py.File(dataset_name, 'w')
 
     data.create_dataset('images', data=x_data)
     data.create_dataset('masks', data=y_data)
@@ -85,7 +84,8 @@ def prepare_data():
 
 
 def loss(y_true, y_pred):
-    return 0.5 * binary_crossentropy(y_true, y_pred) + 1.0 * (1. - jaccard_score(y_true, y_pred)) + 0.5 * (1. - dice_score(y_true, y_pred))
+    return 0.5 * binary_crossentropy(y_true, y_pred) + 1.0 * (1. - jaccard_score(y_true, y_pred)) + 0.5 * (
+                1. - dice_score(y_true, y_pred))
 
 
 if __name__ == '__main__':
@@ -102,7 +102,7 @@ if __name__ == '__main__':
     #
     # exit()
     callbacks_list = [
-        ModelCheckpoint('models/linknet_resnet' + str(BATCH) + '_batch.h5',
+        ModelCheckpoint('models/linknet_gray' + str(BATCH) + '_batch.h5',
                         verbose=1,
                         save_best_only=True,
                         mode='min',
@@ -114,8 +114,8 @@ if __name__ == '__main__':
     ]
 
     model = Linknet(
-        backbone_name='resnet18',
-        input_shape=(HEIGHT, WIDTH, DEPTH),
+        backbone_name='mobilenetv2',
+        input_shape=(HEIGHT, WIDTH, 3),
         activation='sigmoid',
         decoder_block_type='transpose',
         encoder_weights='imagenet',
@@ -126,7 +126,7 @@ if __name__ == '__main__':
     model.compile(optimizer=Adam(1e-3), loss=loss, metrics=[dice_score, jaccard_score])
 
     model_json = model.to_json()
-    json_file = open('models/linknet_resnet' + str(BATCH) + '_batch.json', 'w')
+    json_file = open('models/linknet_gray' + str(BATCH) + '_batch.json', 'w')
     json_file.write(model_json)
     json_file.close()
     print('Model saved!')

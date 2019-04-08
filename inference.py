@@ -7,11 +7,11 @@ from segmentation_models.losses import bce_dice_loss
 from segmentation_models.metrics import dice_score, jaccard_score
 from keras.models import model_from_json
 
-HEIGHT, WIDTH, DEPTH = 288, 288, 3
+HEIGHT, WIDTH, DEPTH = 224, 224, 3
 
 if __name__ == '__main__':
-    json = 'models/linknet.json'
-    weight = 'models/linknet.h5'
+    json = 'models/linknet_gray4_batch.json'
+    weight = 'models/linknet_gray4_batch.h5'
 
     json = open(json, 'r')
 
@@ -20,16 +20,17 @@ if __name__ == '__main__':
 
     model.compile(optimizer=Adam(1e-3), loss=bce_dice_loss, metrics=[dice_score, jaccard_score])
 
-    image = cv2.imread('1.jpg', cv2.IMREAD_UNCHANGED)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = cv2.imread('2.jpg', cv2.IMREAD_GRAYSCALE)
+    image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
     original = cv2.resize(image, (HEIGHT, WIDTH))
     image = original.reshape(1, HEIGHT, WIDTH, DEPTH)
 
     predict = model.predict(image)
 
     result = predict[0, :, :, 0]
-    result[result > 0.5] = 1
-    result[result <= 0.5] = 0
+
+    result[result >= 0.5] = 255
+    result[result < 0.5] = 0
 
     fig, axes = plt.subplots(2, 2)
     axes[0, 0].imshow(original)
