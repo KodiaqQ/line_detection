@@ -7,11 +7,11 @@ from segmentation_models.losses import bce_dice_loss
 from segmentation_models.metrics import dice_score, jaccard_score
 from keras.models import model_from_json
 
-HEIGHT, WIDTH, DEPTH = 224, 224, 3
+HEIGHT, WIDTH, DEPTH = 288, 288, 3
 
 if __name__ == '__main__':
-    json = 'models/linknet3_classes.json'
-    weight = 'models/linknet3_classes.h5'
+    json = 'models/linknet.json'
+    weight = 'models/linknet.h5'
 
     json = open(json, 'r')
 
@@ -27,7 +27,11 @@ if __name__ == '__main__':
 
     predict = model.predict(image)
 
+    result = predict[0, :, :, 0]
+    result[result > 0.5] = 1
+    result[result <= 0.5] = 0
+
     fig, axes = plt.subplots(2, 2)
     axes[0, 0].imshow(original)
-    axes[0, 1].imshow(predict[0, :, :, 0])
+    axes[0, 1].imshow(result)
     plt.show()

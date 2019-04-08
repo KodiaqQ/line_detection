@@ -11,7 +11,9 @@ from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, TensorBoard
 from keras.optimizers import Adam
 import h5py
 import keras.backend as K
-from keras.utils import to_categorical
+from segmentation_models.losses import cce_jaccard_loss
+from sklearn.utils import class_weight
+from segmentation_models.metrics import get_iou_score
 
 SEED = 42
 smooth = 1e-10
@@ -112,9 +114,6 @@ if __name__ == '__main__':
 
     train_images, val_images, train_masks, val_masks = x_data[:5000], x_data[5000:], y_data[:5000], y_data[5000:]
 
-    # val_masks = to_categorical(val_masks, num_classes=len(CLASSES))
-    # train_masks = to_categorical(val_masks, num_classes=len(CLASSES))
-
     # result = val_masks[0, :, :, 2]
     # fig, axes = plt.subplots(2, 2)
     # axes[0, 0].imshow(val_masks[0, :, :, 1])
@@ -145,7 +144,11 @@ if __name__ == '__main__':
     )
 
     model.summary()
-    model.compile(optimizer=Adam(1e-3), loss=IoU_loss, metrics=[IoU])
+    # class_weights = class_weight.compute_class_weight(None,
+    #                                                   np.unique(train_masks),
+    #                                                   train_masks)
+    iou = get_iou_score(class_weights=1., smooth=smooth, per_image=True)
+    model.compile(optimizer=Adam(1e-3), loss=cce_jaccard_loss, metrics=[iou])
 
     model_json = model.to_json()
     json_file = open('models/linknet' + str(len(CLASSES)) + '_classes.json', 'w')

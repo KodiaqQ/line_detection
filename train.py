@@ -1,4 +1,4 @@
-from segmentation_models.unet import Unet
+from segmentation_models import Linknet
 from segmentation_models.utils import set_trainable
 import cv2
 import os
@@ -11,6 +11,7 @@ from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, TensorBoard
 from keras.optimizers import Adam
 import h5py
 from segmentation_models.metrics import dice_score, jaccard_score
+from keras.metrics import binary_crossentropy
 from segmentation_models.losses import bce_dice_loss, jaccard_loss
 
 SEED = 42
@@ -48,7 +49,7 @@ def prepare_data():
     if os.path.isfile(dataset_name):
         data = h5py.File(dataset_name, 'r')
         print('read dataset from hdf5')
-        return data['images'][()][:1000], data['masks'][()][:1000]
+        return data['images'][()], data['masks'][()]
 
     data = h5py.File(dataset_name, 'w')
 
@@ -83,10 +84,14 @@ def prepare_data():
     return x_data, y_data
 
 
+def loss(y_true, y_pred):
+    return 1. - (0.5 * binary_crossentropy(y_true, y_pred) + 1.0 * jaccard_score(y_true, y_pred) + 0.5 * dice_score(y_true, y_pred))
+
+
 if __name__ == '__main__':
     x_data, y_data = prepare_data()
 
-    train_images, val_images, train_masks, val_masks = x_data[:800], x_data[800:1000], y_data[:800], y_data[800:1000]
+    train_images, val_images, train_masks, val_masks = x_data[:5000], x_data[5000:], y_data[:5000], y_data[5000:]
 
     # fig, axes = plt.subplots(1, 2)
     # axes[0].imshow(train_images[10])
@@ -97,7 +102,7 @@ if __name__ == '__main__':
     #
     # exit()
     callbacks_list = [
-        ModelCheckpoint('models/unet' + str(BATCH) + '_batch.h5',
+        ModelCheckpoint('models/linknet_resnet' + str(BATCH) + '_batch.h5',
                         verbose=1,
                         save_best_only=True,
                         mode='min',
@@ -108,39 +113,24 @@ if __name__ == '__main__':
         ReduceLROnPlateau(verbose=1, factor=0.25, patience=3, min_lr=1e-6)
     ]
 
-    model = Unet(
-        backbone_name='mobilenetv2',
+    model = Linknet(
+        backbone_name='resnet18',
         input_shape=(HEIGHT, WIDTH, DEPTH),
-        classes=1,
         activation='sigmoid',
-        decoder_block_type='upsampling',
+        decoder_block_type='transpose',
         encoder_weights='imagenet',
-        encoder_freeze=True,
         decoder_use_batchnorm=True
     )
 
     model.summary()
-    model.compile(optimizer=Adam(1e-3), loss=bce_dice_loss, metrics=[dice_score, jaccard_score])
+    model.compile(optimizer=Adam(1e-3), loss=loss, metrics=[dice_score, jaccard_score])
 
     model_json = model.to_json()
-    json_file = open('models/unet' + str(BATCH) + '_batch.json', 'w')
+    json_file = open('models/linknet_resnet' + str(BATCH) + '_batch.json', 'w')
     json_file.write(model_json)
     json_file.close()
     print('Model saved!')
 
-    # 1st stage
-    model.fit_generator(
-        my_generator(train_images, train_masks, BATCH),
-        steps_per_epoch=len(train_masks) / BATCH,
-        epochs=5,
-        verbose=1,
-        validation_data=my_generator(val_images, val_masks, 1),
-        validation_steps=len(val_images)
-    )
-
-    set_trainable(model)
-
-    # 2nd stage
     model.fit_generator(
         my_generator(train_images, train_masks, BATCH),
         steps_per_epoch=len(train_masks) / BATCH,
