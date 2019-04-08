@@ -84,8 +84,7 @@ def prepare_data():
 
 
 def loss(y_true, y_pred):
-    return 0.5 * binary_crossentropy(y_true, y_pred) + 1.0 * (1. - jaccard_score(y_true, y_pred)) + 0.5 * (
-                1. - dice_score(y_true, y_pred))
+    return 1.0 * binary_crossentropy(y_true, y_pred) + 1.0 * (1. - jaccard_score(y_true, y_pred))
 
 
 if __name__ == '__main__':
