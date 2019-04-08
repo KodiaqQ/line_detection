@@ -11,14 +11,14 @@ from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, TensorBoard
 from keras.optimizers import Adam
 import h5py
 from segmentation_models.metrics import dice_score, jaccard_score
-from segmentation_models.losses import cce_dice_loss, jaccard_loss
+from segmentation_models.losses import bce_dice_loss, jaccard_loss
 
 SEED = 42
 smooth = 1e-10
 HEIGHT, WIDTH, DEPTH = 224, 224, 3
 IMAGES = 'E:/datasets/parking/images'
 MASKS = 'E:/datasets/parking/masks'
-BATCH = 8
+BATCH = 4
 
 
 def my_generator(x_train, y_train, batch_size):
@@ -48,7 +48,7 @@ def prepare_data():
     if os.path.isfile(dataset_name):
         data = h5py.File(dataset_name, 'r')
         print('read dataset from hdf5')
-        return data['images'][()], data['masks'][()]
+        return data['images'][()][:1000], data['masks'][()][:1000]
 
     data = h5py.File(dataset_name, 'w')
 
@@ -86,8 +86,7 @@ def prepare_data():
 if __name__ == '__main__':
     x_data, y_data = prepare_data()
 
-    train_images, val_images, train_masks, val_masks = train_test_split(x_data, y_data, test_size=0.2,
-                                                                        random_state=SEED, shuffle=True)
+    train_images, val_images, train_masks, val_masks = x_data[:800], x_data[800:1000], y_data[:800], y_data[800:1000]
 
     # fig, axes = plt.subplots(1, 2)
     # axes[0].imshow(train_images[10])
@@ -121,7 +120,7 @@ if __name__ == '__main__':
     )
 
     model.summary()
-    model.compile(optimizer=Adam(1e-3), loss=jaccard_loss, metrics=[dice_score, jaccard_score])
+    model.compile(optimizer=Adam(1e-3), loss=bce_dice_loss, metrics=[dice_score, jaccard_score])
 
     model_json = model.to_json()
     json_file = open('models/unet' + str(BATCH) + '_batch.json', 'w')
