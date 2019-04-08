@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, TensorBoard
-from keras.optimizers import Adam
+from keras.optimizers import Adadelta
 import h5py
 from segmentation_models.metrics import dice_score, jaccard_score
 from keras.metrics import binary_crossentropy
@@ -122,7 +122,7 @@ if __name__ == '__main__':
     )
 
     model.summary()
-    model.compile(optimizer=Adam(1e-3), loss=loss, metrics=[dice_score, jaccard_score])
+    model.compile(optimizer=Adadelta(1e-3), loss=loss, metrics=[dice_score, jaccard_score])
 
     model_json = model.to_json()
     json_file = open('models/linknet_gray' + str(BATCH) + '_batch.json', 'w')
