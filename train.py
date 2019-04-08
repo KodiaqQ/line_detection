@@ -1,4 +1,4 @@
-from segmentation_models.linknet import Linknet
+from segmentation_models.unet import Unet
 from segmentation_models.utils import set_trainable
 import cv2
 import os
@@ -98,7 +98,7 @@ if __name__ == '__main__':
     #
     # exit()
     callbacks_list = [
-        ModelCheckpoint('models/linknet' + str(BATCH) + '_batch.h5',
+        ModelCheckpoint('models/unet' + str(BATCH) + '_batch.h5',
                         verbose=1,
                         save_best_only=True,
                         mode='min',
@@ -109,7 +109,7 @@ if __name__ == '__main__':
         ReduceLROnPlateau(verbose=1, factor=0.25, patience=3, min_lr=1e-6)
     ]
 
-    model = Linknet(
+    model = Unet(
         backbone_name='mobilenetv2',
         input_shape=(HEIGHT, WIDTH, DEPTH),
         classes=1,
@@ -124,7 +124,7 @@ if __name__ == '__main__':
     model.compile(optimizer=Adam(1e-3), loss=jaccard_loss, metrics=[dice_score, jaccard_score])
 
     model_json = model.to_json()
-    json_file = open('models/linknet' + str(BATCH) + '_batch.json', 'w')
+    json_file = open('models/unet' + str(BATCH) + '_batch.json', 'w')
     json_file.write(model_json)
     json_file.close()
     print('Model saved!')
