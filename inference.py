@@ -27,11 +27,7 @@ if __name__ == '__main__':
 
     predict = model.predict(image)
 
-    result = predict[0, :, :, 0]
-
     fig, axes = plt.subplots(2, 2)
     axes[0, 0].imshow(original)
     axes[0, 1].imshow(predict[0, :, :, 0])
-    axes[1, 0].imshow(predict[0, :, :, 1])
-    axes[1, 1].imshow(predict[0, :, :, 2])
     plt.show()

@@ -26,15 +26,15 @@ CLASSES = {
 }
 
 
-def IoU_loss(y_true, y_pred, smooth=100.):
+def IoU(y_true, y_pred, smooth=100.):
     intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
     sum_ = K.sum(K.abs(y_true) + K.abs(y_pred), axis=-1)
     jac = (intersection + smooth) / (sum_ - intersection + smooth)
-    return (1 - jac) * smooth
+    return K.mean(jac)
 
 
-def IoU(y_true, y_pred):
-    return 1. - IoU_loss(y_true, y_pred)
+def IoU_loss(y_true, y_pred):
+    return 1. - IoU(y_true, y_pred)
 
 
 def my_generator(x_train, y_train, batch_size):
