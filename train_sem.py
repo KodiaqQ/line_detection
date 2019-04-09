@@ -8,10 +8,11 @@ from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, TensorBoard
 from keras.optimizers import Adam
 from keras.preprocessing.image import ImageDataGenerator
 from segmentation_models import Linknet
-from segmentation_models.losses import cce_jaccard_loss
-from segmentation_models.metrics import jaccard_score, iou_score
+from segmentation_models.losses import cce_jaccard_loss, dice_loss, jaccard_loss
+from segmentation_models.metrics import jaccard_score, dice_score
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
 from albumentations import Compose, ShiftScaleRotate, RandomBrightnessContrast, Normalize, RandomRotate90, \
     HorizontalFlip, VerticalFlip, OneOf, JpegCompression, CLAHE, MedianBlur
 
@@ -55,8 +56,8 @@ def IoU_loss(y_true, y_pred):
 
 
 def my_generator(x_train, y_train, batch_size):
-    data_generator = ImageDataGenerator().flow(x_train, x_train, batch_size, seed=SEED, shuffle=True)
-    mask_generator = ImageDataGenerator().flow(y_train, y_train, batch_size, seed=SEED, shuffle=True)
+    data_generator = ImageDataGenerator().flow(x_train, x_train, batch_size, seed=SEED)
+    mask_generator = ImageDataGenerator().flow(y_train, y_train, batch_size, seed=SEED)
     while True:
         x_batch, _ = data_generator.next()
         y_batch, _ = mask_generator.next()
@@ -84,15 +85,15 @@ def my_generator(x_train, y_train, batch_size):
 def prepare_data():
     print('starting making data..')
 
-    dataset_name = 'birdEyeViewSemantic_new.hdf5'
+    dataset_name = 'birdEyeViewSemantic_rgb_gray.hdf5'
 
     if os.path.isfile(dataset_name):
         data = h5py.File(dataset_name, 'r')
         print('read dataset from hdf5')
         return data['images'][()], data['masks'][()]
 
-    images = os.listdir(IMAGES)[:100]
-    masks = os.listdir(MASKS)[:100]
+    images = os.listdir(IMAGES)
+    masks = os.listdir(MASKS)
 
     x_data = np.empty((len(images), HEIGHT, WIDTH, 3), dtype=np.uint8)
     y_data = np.empty((len(masks), HEIGHT, WIDTH, len(CLASSES)), dtype=np.uint8)
@@ -142,9 +143,9 @@ if __name__ == '__main__':
     # gene.__next__()
     # exit()
 
-    train_images, val_images, train_masks, val_masks = x_data[:80], x_data[80:], y_data[:80], y_data[80:]
+    train_images, val_images, train_masks, val_masks = train_test_split(x_data, y_data, shuffle=True, test_size=0.2)
     callbacks_list = [
-        ModelCheckpoint('models/fpn_sem_' + str(len(CLASSES)) + '_classes.h5',
+        ModelCheckpoint('models/linknet_layers_' + str(len(CLASSES)) + '_classes.h5',
                         verbose=1,
                         save_best_only=True,
                         mode='min',
@@ -156,20 +157,20 @@ if __name__ == '__main__':
     ]
 
     model = Linknet(
-        backbone_name='resnet18',
+        backbone_name='densenet121',
         input_shape=(HEIGHT, WIDTH, DEPTH),
         classes=len(CLASSES),
         activation='sigmoid',
-        decoder_block_type='transpose',
+        decoder_block_type='upsampling',
         encoder_weights='imagenet',
         decoder_use_batchnorm=True
     )
 
     model.summary()
-    model.compile(optimizer=Adam(1e-3), loss=cce_jaccard_loss, metrics=[jaccard_score, iou_score])
+    model.compile(optimizer=Adam(1e-3), loss=jaccard_loss, metrics=[jaccard_score, dice_score])
 
     model_json = model.to_json()
-    json_file = open('models/fpn_sem_' + str(len(CLASSES)) + '_classes.json', 'w')
+    json_file = open('models/linknet_layers_' + str(len(CLASSES)) + '_classes.json', 'w')
     json_file.write(model_json)
     json_file.close()
     print('Model saved!')
