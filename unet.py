@@ -1,18 +1,15 @@
-from segmentation_models import Linknet
-from segmentation_models.utils import set_trainable
 import cv2
 import os
 import numpy as np
 from keras.preprocessing.image import ImageDataGenerator
-from sklearn.model_selection import train_test_split
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, TensorBoard
-from keras.optimizers import Adadelta
+from keras.optimizers import Adam
 import h5py
 from segmentation_models.metrics import dice_score, jaccard_score
 from keras.metrics import binary_crossentropy
-from segmentation_models.losses import bce_dice_loss, jaccard_loss
+from keras.layers import Conv2D, Input, MaxPooling2D, concatenate, UpSampling2D, PReLU, BatchNormalization, ReLU, add
+from keras.models import Model
 
 SEED = 42
 smooth = 1e-10
@@ -20,6 +17,77 @@ HEIGHT, WIDTH, DEPTH = 224, 224, 1
 IMAGES = 'E:/datasets/parking/images'
 MASKS = 'E:/datasets/parking/masks'
 BATCH = 4
+
+
+def residual(in_filters, out_filters, kernel_size=(3, 3), bottleneck_rate=4, dilation=(1, 1)):
+    def layer(x):
+        a = Conv2D(filters=in_filters // bottleneck_rate, kernel_size=(1, 1), padding='same', use_bias=False)(x)
+        a = BatchNormalization()(a)
+        a = PReLU(shared_axes=[1, 2])(a)
+        a = Conv2D(filters=in_filters // bottleneck_rate, kernel_size=kernel_size, dilation_rate=dilation,
+                   padding='same', use_bias=False)(a)
+        a = BatchNormalization()(a)
+        a = PReLU(shared_axes=[1, 2])(a)
+        a = Conv2D(filters=out_filters, kernel_size=(1, 1), padding='same', use_bias=False)(a)
+        a = BatchNormalization()(a)
+        a = PReLU(shared_axes=[1, 2])(a)
+
+        x = add([x, a])
+        return x
+
+    return layer
+
+
+def conv(x, filters):
+    x = Conv2D(filters=filters, kernel_size=(3, 3), padding='same')(x)
+    x = BatchNormalization()(x)
+    x = PReLU()(x)
+    x = Conv2D(filters=filters, kernel_size=(3, 3), padding='same')(x)
+    x = BatchNormalization()(x)
+    x = PReLU()(x)
+    return x
+
+
+def Unet():
+    input_layer = Input(shape=(HEIGHT, WIDTH, 3))
+
+    conv0 = conv(input_layer, 16)
+    pool0 = MaxPooling2D(pool_size=(2, 2))(conv0)
+
+    conv1 = conv(pool0, 16)
+    pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
+
+    conv2 = conv(pool1, 32)
+    pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
+
+    conv3 = conv(pool2, 64)
+    pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
+
+    conv4 = conv(pool3, 128)
+    pool4 = MaxPooling2D(pool_size=(2, 2))(conv4)
+
+    conv5 = conv(pool4, 256)
+
+    up6 = concatenate([UpSampling2D(size=(2, 2))(conv5), conv4], axis=3)
+    conv6 = conv(up6, 128)
+
+    up7 = concatenate([UpSampling2D(size=(2, 2))(conv6), conv3], axis=3)
+    conv7 = conv(up7, 64)
+
+    up8 = concatenate([UpSampling2D(size=(2, 2))(conv7), conv2], axis=3)
+    conv8 = conv(up8, 32)
+
+    up9 = concatenate([UpSampling2D(size=(2, 2))(conv8), conv1], axis=3)
+    conv9 = conv(up9, 16)
+
+    up10 = concatenate([UpSampling2D(size=(2, 2))(conv9), conv0], axis=3)
+    conv10 = conv(up10, 16)
+
+    conv11 = Conv2D(filters=1, kernel_size=(1, 1), activation='sigmoid')(conv10)
+
+    model = Model(input=input_layer, output=conv11)
+
+    return model
 
 
 def my_generator(x_train, y_train, batch_size):
@@ -103,7 +171,7 @@ if __name__ == '__main__':
     #
     # exit()
     callbacks_list = [
-        ModelCheckpoint('models/linknet_gray' + str(BATCH) + '_batch.h5',
+        ModelCheckpoint('models/unet_gray' + str(BATCH) + '_batch.h5',
                         verbose=1,
                         save_best_only=True,
                         mode='min',
@@ -114,20 +182,13 @@ if __name__ == '__main__':
         ReduceLROnPlateau(verbose=1, factor=0.25, patience=3, min_lr=1e-6)
     ]
 
-    model = Linknet(
-        backbone_name='mobilenetv2',
-        input_shape=(HEIGHT, WIDTH, 3),
-        activation='sigmoid',
-        decoder_block_type='transpose',
-        encoder_weights='imagenet',
-        decoder_use_batchnorm=True
-    )
+    model = Unet()
 
     model.summary()
-    model.compile(optimizer=Adadelta(1e-3), loss=loss, metrics=[dice_score, jaccard_score])
+    model.compile(optimizer=Adam(1e-3), loss=loss, metrics=[dice_score, jaccard_score])
 
     model_json = model.to_json()
-    json_file = open('models/linknet_gray' + str(BATCH) + '_batch.json', 'w')
+    json_file = open('models/unet_gray' + str(BATCH) + '_batch.json', 'w')
     json_file.write(model_json)
     json_file.close()
     print('Model saved!')
