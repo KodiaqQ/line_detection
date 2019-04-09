@@ -14,13 +14,13 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from albumentations import Compose, ShiftScaleRotate, RandomBrightnessContrast, Normalize, RandomRotate90, \
-    HorizontalFlip, VerticalFlip, OneOf, JpegCompression, CLAHE, MedianBlur
+    HorizontalFlip, VerticalFlip, OneOf, JpegCompression, CLAHE, MedianBlur, RandomCrop
 
 SEED = 42
 smooth = 1e-10
-HEIGHT, WIDTH, DEPTH = 224, 224, 3
-IMAGES = 'E:/datasets/parking/images'
-MASKS = 'E:/datasets/parking/masks'
+HEIGHT, WIDTH, DEPTH = 160, 160, 3
+IMAGES = 'data/images'
+MASKS = 'data/masks'
 BATCH = 4
 CLASSES = {
     'car': 76,
@@ -40,7 +40,8 @@ def aug(p=1):
         JpegCompression(p=0.25),
         CLAHE(p=0.25),
         RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.2, p=0.25),
-        MedianBlur(p=0.25)
+        MedianBlur(p=0.25),
+        RandomCrop(p=1.0, height=HEIGHT, width=WIDTH)
     ], p=p)
 
 
