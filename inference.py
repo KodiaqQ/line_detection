@@ -10,8 +10,8 @@ from keras.models import model_from_json
 HEIGHT, WIDTH, DEPTH = 224, 224, 3
 
 if __name__ == '__main__':
-    json = 'models/linknet_gray8_batch.json'
-    weight = 'models/linknet_gray8_batch.h5'
+    json = 'models/fpn_sem_resnet_3_classes.json'
+    weight = 'models/fpn_sem_resnet_3_classes.h5'
 
     json = open(json, 'r')
 
@@ -20,19 +20,16 @@ if __name__ == '__main__':
 
     model.compile(optimizer=Adam(1e-3), loss=bce_dice_loss, metrics=[dice_score, jaccard_score])
 
-    image = cv2.imread('lane1.jpg', cv2.IMREAD_GRAYSCALE)
+    image = cv2.imread('1.jpg', cv2.IMREAD_GRAYSCALE)
     image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
     original = cv2.resize(image, (HEIGHT, WIDTH))
     image = original.reshape(1, HEIGHT, WIDTH, DEPTH)
 
     predict = model.predict(image)
 
-    result = predict[0, :, :, 0]
-
-    # result[result >= 0.5] = 255
-    # result[result < 0.5] = 0
-
     fig, axes = plt.subplots(2, 2)
     axes[0, 0].imshow(original)
-    axes[0, 1].imshow(result)
+    axes[0, 1].imshow(predict[0, :, :, 0])
+    axes[1, 0].imshow(predict[0, :, :, 1])
+    axes[1, 1].imshow(predict[0, :, :, 2])
     plt.show()

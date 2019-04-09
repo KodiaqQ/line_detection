@@ -7,13 +7,13 @@ import numpy as np
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, TensorBoard
 from keras.optimizers import Adam
 from keras.preprocessing.image import ImageDataGenerator
-from segmentation_models import FPN
+from segmentation_models import Linknet
 from segmentation_models.losses import cce_jaccard_loss
 from segmentation_models.metrics import jaccard_score, iou_score
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from albumentations import Compose, ShiftScaleRotate, RandomBrightnessContrast, Normalize, RandomRotate90, \
-    HorizontalFlip, VerticalFlip, OneOf, JpegCompression
+    HorizontalFlip, VerticalFlip, OneOf, JpegCompression, CLAHE, MedianBlur
 
 SEED = 42
 smooth = 1e-10
@@ -36,8 +36,10 @@ def aug(p=1):
             ShiftScaleRotate(shift_limit=0.05, scale_limit=0.2, rotate_limit=90),
             RandomRotate90()
         ], p=0.75),
-        JpegCompression(),
-        RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.2, p=0.25)
+        JpegCompression(p=0.25),
+        CLAHE(p=0.25),
+        RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.2, p=0.25),
+        MedianBlur(p=0.25)
     ], p=p)
 
 
@@ -53,8 +55,8 @@ def IoU_loss(y_true, y_pred):
 
 
 def my_generator(x_train, y_train, batch_size):
-    data_generator = ImageDataGenerator().flow(x_train, x_train, batch_size, seed=SEED)
-    mask_generator = ImageDataGenerator().flow(y_train, y_train, batch_size, seed=SEED)
+    data_generator = ImageDataGenerator().flow(x_train, x_train, batch_size, seed=SEED, shuffle=True)
+    mask_generator = ImageDataGenerator().flow(y_train, y_train, batch_size, seed=SEED, shuffle=True)
     while True:
         x_batch, _ = data_generator.next()
         y_batch, _ = mask_generator.next()
@@ -68,6 +70,11 @@ def my_generator(x_train, y_train, batch_size):
             sample = {'image': image, 'mask': y_batch[0, :, :, :]}
             augmentation = aug()
             augmentations = augmentation(**sample)
+
+            # cv2.imshow('image', np.array(augmentations['image'], dtype=np.uint8))
+            # cv2.imshow('mask', np.array(augmentations['mask'], dtype=np.uint8))
+            # cv2.waitKey(0)
+            # exit()
 
             X[i], y[i] = augmentations['image'] / 255., augmentations['mask'] / 255.
 
@@ -84,8 +91,8 @@ def prepare_data():
         print('read dataset from hdf5')
         return data['images'][()], data['masks'][()]
 
-    images = os.listdir(IMAGES)
-    masks = os.listdir(MASKS)
+    images = os.listdir(IMAGES)[:100]
+    masks = os.listdir(MASKS)[:100]
 
     x_data = np.empty((len(images), HEIGHT, WIDTH, 3), dtype=np.uint8)
     y_data = np.empty((len(masks), HEIGHT, WIDTH, len(CLASSES)), dtype=np.uint8)
@@ -148,8 +155,8 @@ if __name__ == '__main__':
         ReduceLROnPlateau(verbose=1, factor=0.25, patience=3, min_lr=1e-6)
     ]
 
-    model = FPN(
-        backbone_name='mobilenetv2',
+    model = Linknet(
+        backbone_name='resnet18',
         input_shape=(HEIGHT, WIDTH, DEPTH),
         classes=len(CLASSES),
         activation='sigmoid',

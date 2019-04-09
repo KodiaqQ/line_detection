@@ -12,7 +12,7 @@ from keras.optimizers import Adadelta
 import h5py
 from segmentation_models.metrics import dice_score, jaccard_score
 from keras.metrics import binary_crossentropy
-from segmentation_models.losses import bce_dice_loss, jaccard_loss
+from albumentations import *
 
 SEED = 42
 smooth = 1e-10
@@ -23,30 +23,31 @@ BATCH = 4
 
 
 def my_generator(x_train, y_train, batch_size):
-    data_generator = ImageDataGenerator(
-        width_shift_range=0.25,
-        height_shift_range=0.25,
-        rotation_range=45,
-        vertical_flip=True,
-        horizontal_flip=True,
-        rescale=1. / 255).flow(x_train, x_train, batch_size, seed=SEED)
-    mask_generator = ImageDataGenerator(
-        width_shift_range=0.25,
-        height_shift_range=0.25,
-        rotation_range=45,
-        vertical_flip=True,
-        horizontal_flip=True,
-        rescale=1. / 255).flow(y_train, y_train, batch_size, seed=SEED)
+    data_generator = ImageDataGenerator().flow(x_train, x_train, batch_size, seed=SEED, shuffle=True)
+    mask_generator = ImageDataGenerator().flow(y_train, y_train, batch_size, seed=SEED, shuffle=True)
     while True:
         x_batch, _ = data_generator.next()
         y_batch, _ = mask_generator.next()
-        yield x_batch, y_batch
+
+        X = np.empty((batch_size, x_batch[0].shape[0], x_batch[0].shape[1], x_batch[0].shape[2]), dtype='float32')
+        y = np.empty((batch_size, x_batch[0].shape[0], x_batch[0].shape[1], x_batch[0].shape[2]), dtype='float32')
+
+        for i, image in enumerate(x_batch):
+            image = np.array(image, dtype=np.uint8)
+
+            sample = {'image': image, 'mask': y_batch[0, :, :, :]}
+            augmentation = aug()
+            augmentations = augmentation(**sample)
+
+            X[i], y[i] = augmentations['image'] / 255., augmentations['mask'] / 255.
+
+        yield X, y
 
 
 def prepare_data():
     print('starting making data..')
 
-    dataset_name = 'birdEyeView_gray.hdf5'
+    dataset_name = 'birdEyeView_binary.hdf5'
 
     if os.path.isfile(dataset_name):
         data = h5py.File(dataset_name, 'r')
@@ -61,8 +62,9 @@ def prepare_data():
 
     tbar = tqdm(images)
     for i, file_name in enumerate(tbar):
-        image = cv2.imread(os.path.join(IMAGES, file_name), cv2.IMREAD_GRAYSCALE)
-        image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+        image = cv2.imread(os.path.join(IMAGES, file_name), cv2.IMREAD_UNCHANGED)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = cv2.GaussianBlur(image, (5, 5), 0)
         image = cv2.resize(image, dsize=(HEIGHT, WIDTH), interpolation=cv2.INTER_LINEAR)
 
         mask = cv2.imread(os.path.join(MASKS, file_name.replace('.jpg', '.png')), cv2.IMREAD_GRAYSCALE)
@@ -83,6 +85,21 @@ def prepare_data():
     data.close()
 
     return x_data, y_data
+
+
+def aug(p=1):
+    return Compose([
+        OneOf([
+            HorizontalFlip(),
+            VerticalFlip(),
+            ShiftScaleRotate(shift_limit=0.05, scale_limit=0.2, rotate_limit=90),
+            RandomRotate90()
+        ], p=0.75),
+        JpegCompression(p=0.25),
+        CLAHE(p=0.25),
+        MedianBlur(p=0.25),
+        RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.2, p=0.25)
+    ], p=p)
 
 
 def loss(y_true, y_pred):
