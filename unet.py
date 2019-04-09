@@ -114,7 +114,7 @@ def my_generator(x_train, y_train, batch_size):
 def prepare_data():
     print('starting making data..')
 
-    dataset_name = 'birdEyeView_gray.hdf5'
+    dataset_name = 'birdEyeView.hdf5'
 
     if os.path.isfile(dataset_name):
         data = h5py.File(dataset_name, 'r')
@@ -129,8 +129,8 @@ def prepare_data():
 
     tbar = tqdm(images)
     for i, file_name in enumerate(tbar):
-        image = cv2.imread(os.path.join(IMAGES, file_name), cv2.IMREAD_GRAYSCALE)
-        image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+        image = cv2.imread(os.path.join(IMAGES, file_name), cv2.IMREAD_UNCHANGED)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         image = cv2.resize(image, dsize=(HEIGHT, WIDTH), interpolation=cv2.INTER_LINEAR)
 
         mask = cv2.imread(os.path.join(MASKS, file_name.replace('.jpg', '.png')), cv2.IMREAD_GRAYSCALE)
@@ -171,7 +171,7 @@ if __name__ == '__main__':
     #
     # exit()
     callbacks_list = [
-        ModelCheckpoint('models/unet_gray' + str(BATCH) + '_batch.h5',
+        ModelCheckpoint('models/unet_rgb' + str(BATCH) + '_batch.h5',
                         verbose=1,
                         save_best_only=True,
                         mode='min',
@@ -188,7 +188,7 @@ if __name__ == '__main__':
     model.compile(optimizer=Adam(1e-3), loss=loss, metrics=[dice_score, jaccard_score])
 
     model_json = model.to_json()
-    json_file = open('models/unet_gray' + str(BATCH) + '_batch.json', 'w')
+    json_file = open('models/unet_rgb' + str(BATCH) + '_batch.json', 'w')
     json_file.write(model_json)
     json_file.close()
     print('Model saved!')

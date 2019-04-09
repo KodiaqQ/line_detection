@@ -20,7 +20,7 @@ if __name__ == '__main__':
 
     model.compile(optimizer=Adam(1e-3), loss=bce_dice_loss, metrics=[dice_score, jaccard_score])
 
-    image = cv2.imread('2.jpg', cv2.IMREAD_GRAYSCALE)
+    image = cv2.imread('lane1.jpg', cv2.IMREAD_GRAYSCALE)
     image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
     original = cv2.resize(image, (HEIGHT, WIDTH))
     image = original.reshape(1, HEIGHT, WIDTH, DEPTH)
