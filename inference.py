@@ -10,8 +10,8 @@ from keras.models import model_from_json
 HEIGHT, WIDTH, DEPTH = 224, 224, 3
 
 if __name__ == '__main__':
-    json = 'models/fpn_sem_resnet_3_classes.json'
-    weight = 'models/fpn_sem_resnet_3_classes.h5'
+    json = 'models/linknet_vgg16_3_classes.json'
+    weight = 'models/linknet_vgg16_3_classes.h5'
 
     json = open(json, 'r')
 
@@ -20,8 +20,7 @@ if __name__ == '__main__':
 
     model.compile(optimizer=Adam(1e-3), loss=bce_dice_loss, metrics=[dice_score, jaccard_score])
 
-    image = cv2.imread('1.jpg', cv2.IMREAD_GRAYSCALE)
-    image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+    image = cv2.imread('1.jpg', cv2.IMREAD_UNCHANGED)
     original = cv2.resize(image, (HEIGHT, WIDTH))
     image = original.reshape(1, HEIGHT, WIDTH, DEPTH)
 

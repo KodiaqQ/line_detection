@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from skimage.morphology import remove_small_objects
 import time
 import math
+import os
 
 # fig, axes = plt.subplots(6, 4)
 #
@@ -48,13 +49,14 @@ import math
 #
 # plt.show()
 
-cap = cv2.VideoCapture('auto.mp4')
+cap = cv2.VideoCapture('output.avi')
 
 while True:
 
     ret, frame = cap.read()
     if not ret:
         break
+    # frame = cv2.imread('1.jpg')
     height, width, depth = frame.shape
     region_of_interest_vertices = [
         (0, height),
@@ -81,11 +83,11 @@ while True:
     e_im = cv2.erode(d_im, kernel, iterations=1)
     # kernel = np.ones((20, 1), np.uint8)
     # e_im = cv2.erode(e_im, kernel, iterations=1)
-    ret, thresh = cv2.threshold(e_im, 127, 255, 0)
+    ret, thresh = cv2.threshold(e_im, 127, 255, cv2.THRESH_BINARY_INV+cv2.THRESH_OTSU)
     contours, hierarchy = cv2.findContours(thresh, 1, 2)
     cntsSorted = sorted(contours, key=lambda x: cv2.contourArea(x), reverse=True)
-    for contour in cntsSorted[:4]:
-        if cv2.contourArea(contour) < 150:
+    for contour in cntsSorted[:3]:
+        if cv2.contourArea(contour) < 100:
             continue
         x, y, w, h = cv2.boundingRect(contour)
         rect = cv2.minAreaRect(contour)
