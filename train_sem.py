@@ -12,13 +12,14 @@ from segmentation_models.losses import cce_jaccard_loss, dice_loss, jaccard_loss
 from segmentation_models.metrics import jaccard_score, dice_score
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from keras.losses import categorical_crossentropy
 from sklearn.model_selection import train_test_split
 from albumentations import Compose, ShiftScaleRotate, RandomBrightnessContrast, Normalize, RandomRotate90, \
     HorizontalFlip, VerticalFlip, OneOf, JpegCompression, CLAHE, MedianBlur, RandomCrop
 
 SEED = 42
 smooth = 1e-10
-HEIGHT, WIDTH, DEPTH = 160, 160, 3
+HEIGHT, WIDTH, DEPTH = 224, 224, 3
 IMAGES = 'data/images'
 MASKS = 'data/masks'
 BATCH = 4
@@ -40,8 +41,7 @@ def aug(p=1):
         JpegCompression(p=0.25),
         CLAHE(p=0.25),
         RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.2, p=0.25),
-        MedianBlur(p=0.25),
-        RandomCrop(p=1.0, height=HEIGHT, width=WIDTH)
+        MedianBlur(p=0.25)
     ], p=p)
 
 
@@ -129,14 +129,6 @@ def prepare_data():
     return x_data, y_data
 
 
-def focal_loss(target, output, gamma=2):
-    output /= K.sum(output, axis=-1, keepdims=True)
-    eps = K.epsilon()
-    output = K.clip(output, eps, 1. - eps)
-    return -K.sum(K.pow(1. - output, gamma) * target * K.log(output),
-                  axis=-1)
-
-
 if __name__ == '__main__':
     x_data, y_data = prepare_data()
 
@@ -146,19 +138,16 @@ if __name__ == '__main__':
 
     train_images, val_images, train_masks, val_masks = train_test_split(x_data, y_data, shuffle=True, test_size=0.2)
     callbacks_list = [
-        ModelCheckpoint('models/linknet_layers_' + str(len(CLASSES)) + '_classes.h5',
+        ModelCheckpoint('models/linknet_vgg16_' + str(len(CLASSES)) + '_classes.h5',
                         verbose=1,
                         save_best_only=True,
                         mode='min',
                         save_weights_only=True),
-        TensorBoard(log_dir='./logs',
-                    batch_size=BATCH,
-                    write_images=True),
         ReduceLROnPlateau(verbose=1, factor=0.25, patience=3, min_lr=1e-6)
     ]
 
     model = Linknet(
-        backbone_name='densenet121',
+        backbone_name='vgg16',
         input_shape=(HEIGHT, WIDTH, DEPTH),
         classes=len(CLASSES),
         activation='sigmoid',
@@ -171,7 +160,7 @@ if __name__ == '__main__':
     model.compile(optimizer=Adam(1e-3), loss=jaccard_loss, metrics=[jaccard_score, dice_score])
 
     model_json = model.to_json()
-    json_file = open('models/linknet_layers_' + str(len(CLASSES)) + '_classes.json', 'w')
+    json_file = open('models/linknet_vgg16_' + str(len(CLASSES)) + '_classes.json', 'w')
     json_file.write(model_json)
     json_file.close()
     print('Model saved!')
