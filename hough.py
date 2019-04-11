@@ -78,10 +78,10 @@ while True:
     image = cv2.GaussianBlur(masked, (5, 5), 0)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     image = cv2.inRange(image, (5, 5, 150), (255, 255, 255))
-    kernel = np.ones((20, 20), np.uint8)  # vertical
+    kernel = np.ones((20, 20), np.uint8)
     d_im = cv2.dilate(image, kernel, iterations=1)
     e_im = cv2.erode(d_im, kernel, iterations=1)
-    # kernel = np.ones((20, 1), np.uint8)
+    # kernel = np.ones((20, 1), np.uint8) # vertical
     # e_im = cv2.erode(e_im, kernel, iterations=1)
     ret, thresh = cv2.threshold(e_im, 127, 255, cv2.THRESH_BINARY_INV+cv2.THRESH_OTSU)
     contours, hierarchy = cv2.findContours(thresh, 1, 2)

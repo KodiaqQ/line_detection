@@ -25,8 +25,11 @@ def bird_view(image):
 
 if __name__ == '__main__':
     cap = cv2.VideoCapture('output.avi')
+    # count = 0
+    # total = 269
     while True:
         ret, frame = cap.read()
+        start = time.time()
         height, width, depth = frame.shape
         kernel = np.ones((20, 100), np.uint8)
 
@@ -43,6 +46,14 @@ if __name__ == '__main__':
         undistorted_image = cv2.undistort(frame, CAM_MATRIX, DIST_COEF)
 
         viewed = bird_view(undistorted_image)
+
+        viewed = cv2.resize(viewed, dsize=(int(height / 2), int(width / 2)))
+
+        # if count % 5 == 0:
+        #     total += 1
+        #     cv2.imwrite(os.path.join('E:/datasets/parking/birdview', str(total) + '.jpg'), viewed)
+        #
+        # count += 1
 
         region_of_interest_vertices = [
             (128, height - 128),
@@ -89,15 +100,18 @@ if __name__ == '__main__':
 
         angle = int(math.atan((y2 - y1 + 1) / (x2 - x1 + 1)) * 180 / math.pi)
 
-        if abs(angle) > 80 and abs(angle) < 100 and (y1 - y2) > 150:
-            cv2.line(viewed, (x1, y1), (x2, y2), (0, 0, 255), 2)
+        if abs(angle) > 80 and abs(angle) < 100 and (y1 - y2) > 175 and (y1 - y2) < 400:
+            length = y1 - y2
+            cv2.line(viewed, (x1, y1), (x2, y2 + h2), (0, 0, 255), 2)
             cv2.circle(viewed, (x1, y1), 5, (0, 0, 255), 3)
-            cv2.circle(viewed, (x2, y2), 5, (0, 0, 255), 3)
+            cv2.circle(viewed, (x2, y2 + h2), 5, (0, 0, 255), 3)
+            cv2.circle(viewed, (x2, int((y2 + y1 + h2) / 2)), 5, (0, 255, 255), 3)
+            # cv2.putText(viewed, str(length) + 'px', (100, 100), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255, 255, 255))
 
-        viewed = cv2.resize(viewed, dsize=(int(height / 2), int(width / 2)))
-
+        end = time.time()
+        ms = end - start
+        cv2.putText(viewed, f'time spent {ms}', (50, 200), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255, 255, 255))
         cv2.imshow('viewed', viewed)
-
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
     cap.release()

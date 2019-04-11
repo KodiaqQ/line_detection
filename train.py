@@ -152,7 +152,7 @@ if __name__ == '__main__':
     model.fit_generator(
         my_generator(train_images, train_masks, BATCH),
         steps_per_epoch=len(train_masks) / BATCH,
-        epochs=50,
+        epochs=200,
         verbose=1,
         validation_data=my_generator(val_images, val_masks, 1),
         validation_steps=len(val_images),
