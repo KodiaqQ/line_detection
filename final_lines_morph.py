@@ -86,60 +86,90 @@ if __name__ == '__main__':
         threshold_x[threshold_x < 0.2] = 0
 
         arr_x = threshold_x > 0
-        final_x = remove_small_objects(arr_x, min_size=512, connectivity=1)
-        final_x = np.array(final_x * 255, dtype=np.uint8)
+        threshold_x = remove_small_objects(arr_x, min_size=512, connectivity=1)
+        threshold_x = np.array(threshold_x * 255, dtype=np.uint8)
 
         arr_y = threshold_y > 0
-        final_y = remove_small_objects(arr_y, min_size=512, connectivity=1)
-        final_y = np.array(final_y * 255, dtype=np.uint8)
+        threshold_y = remove_small_objects(arr_y, min_size=512, connectivity=1)
+        threshold_y = np.array(threshold_y * 255, dtype=np.uint8)
 
-        cv2.imshow('final_x', final_x)
-        cv2.imshow('final_y', final_y)
-        cv2.imshow('viewed', viewed)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+        contours, hierarchy = cv2.findContours(threshold_x, 1, 2)
+        contours_sorted_by_area_x = sorted(contours, key=lambda x: cv2.contourArea(x), reverse=True)
 
-        arr = threshold_x > 0
-        final = remove_small_objects(arr, min_size=512, connectivity=1)
-        final = np.array(final * 255, dtype=np.uint8)
+        contours_coords_x = []
 
-        contours, hierarchy = cv2.findContours(final, 1, 2)
-        contours_sorted_by_area = sorted(contours, key=lambda x: cv2.contourArea(x), reverse=True)
-
-        contours_vertical = []
-        for j, contour_sort in enumerate(contours_sorted_by_area):
+        for j, contour_sort in enumerate(contours_sorted_by_area_x):
             if 0 in contour_sort or cv2.contourArea(contour_sort) < 250:
                 continue
             x, y, w, h = cv2.boundingRect(contour_sort)
-            contours_vertical.append([x, y, w, h])
+            contours_coords_x.append([x, y, w, h])
 
-        contours_sorted_by_x = sorted(contours_vertical, key=lambda x: x[1])
+        contours_x_sorted_by_x = sorted(contours_coords_x, key=lambda x: x[1])
 
-        if len(contours_sorted_by_x) > 2:
-            x1, y1, w1, h1 = contours_sorted_by_x[-1]
-            x2, y2, w2, h2 = contours_sorted_by_x[-2]
+        contours, hierarchy = cv2.findContours(threshold_y, 1, 2)
+        contours_sorted_by_area_y = sorted(contours, key=lambda x: cv2.contourArea(x), reverse=True)
 
-            angle = abs(int(math.atan((y2 - y1) / (x2 - x1 + 0.001)) * 180 / math.pi))
-            if 80 < angle < 100:
-                cv2.line(viewed, (x1, y1), (x2, y2 + h2), (0, 0, 255), 2)
-                cv2.circle(viewed, (x1, y1), 5, (0, 0, 255), 3)
-                cv2.circle(viewed, (x2, y2 + h2), 5, (0, 0, 255), 3)
+        contours_coords_y = []
 
-            cv2.circle(viewed, (x1, y1), 5, (0, 0, 255), 3)
-            cv2.circle(viewed, (x2, y2 + h2), 5, (0, 0, 255), 3)
+        for j, contour_sort in enumerate(contours_sorted_by_area_y):
+            if 0 in contour_sort or cv2.contourArea(contour_sort) < 250:
+                continue
+            x, y, w, h = cv2.boundingRect(contour_sort)
+            contours_coords_y.append([x, y, w, h])
+
+        contours_y_sorted_by_y = sorted(contours_coords_y, key=lambda x: x[1])
+
+        if len(contours_x_sorted_by_x) > 1 and len(contours_sorted_by_area_y) > 0:
+            x1, y1, w1, h1 = contours_x_sorted_by_x[-1]
+            x2, y2, w2, h2 = contours_x_sorted_by_x[-2]
+
+            angle_in_deg_1 = math.atan(w1 / h1) * 180 / math.pi
+            angle_in_deg_2 = math.atan(w2 / h2) * 180 / math.pi
+
+            angle_delta = abs(angle_in_deg_2 - angle_in_deg_1)
+
+            if 0 < angle_delta < 5:
+                middle_point_x = int((x2 + x1) / 2)
+                middle_point_y = int((y2 + h2 + y1) / 2)
+
+                for contour_y in contours_y_sorted_by_y:
+                    x_y_1 = contour_y[0]
+                    y_y_1 = contour_y[1]
+                    w_y_1 = contour_y[2]
+                    h_y_1 = contour_y[3]
+
+                    if y_y_1 < middle_point_y < y_y_1 + h_y_1:
+                        angle_in_deg_y = math.atan(1 / contour_y[2]) * 180 / math.pi
+                        angle_in_deg_x = math.atan(w2 / h2) * 180 / math.pi
+
+                        angle_delta = round(angle_in_deg_x - angle_in_deg_y)
+
+                        if 80 < angle_delta < 90:
+                            cv2.line(viewed, (middle_point_x, middle_point_y),
+                                     (int(x_y_1 + w_y_1 / 2), int(y_y_1 + h_y_1 / 2)),
+                                     (0, 0, 255), 2)
+                            cv2.circle(viewed, (middle_point_x, middle_point_y), 5, (0, 0, 255), 3)
+                            cv2.line(viewed, (x1, y1), (x2, y2 + h2), (0, 0, 255), 2)
+                            cv2.circle(viewed, (x1, y1), 5, (0, 0, 255), 3)
+                            cv2.circle(viewed, (x2, y2 + h2), 5, (0, 0, 255), 3)
 
         end = time.time()
-        ms = end - start
+        ms = round(end - start, 4)
 
-        cv2.putText(final, f'time spent {ms}', (50, 50), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255, 255, 255))
+        cv2.putText(viewed, f'time {ms} ms', (50, 50), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255, 255, 255))
 
         cv2.circle(viewed, (162, 470), 5, (0, 0, 255), 3)
         cv2.circle(frame, (508, 838), 5, (0, 0, 255), 3)
 
-        # cv2.imshow('frame', frame)
-        # cv2.imshow('threshold_x', threshold_x)
-        # cv2.imshow('threshold_y', threshold_y)
-        cv2.imshow('viewed', viewed)
+        viewed = cv2.resize(viewed, dsize=(width, height), interpolation=cv2.INTER_AREA)
+        img_size = (viewed.shape[1], viewed.shape[0])
+        M = cv2.getPerspectiveTransform(DST, SRC)
+        result = cv2.warpPerspective(viewed, M, img_size, flags=cv2.INTER_LINEAR)
+
+        # result = cv2.bitwise_or(result, frame)
+
+        # cv2.imshow('viewed', viewed)
+        cv2.imshow('result', result)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
     cap.release()
